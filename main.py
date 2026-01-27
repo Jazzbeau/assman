@@ -3,8 +3,8 @@ import time
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
-from models.broadcaster import Broadcaster
-from models.managed_app import test_app
+from dev.test import test_app, test_server
+from utils.broadcaster import Broadcaster
 
 app = FastAPI()
 broadcaster = Broadcaster()
@@ -12,7 +12,7 @@ broadcaster = Broadcaster()
 
 @app.get("/testwindows")
 async def test_windows():
-    await test_app()
+    await test_server()
 
 
 @app.websocket("/ws")

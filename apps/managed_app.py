@@ -2,37 +2,11 @@ import asyncio
 import os
 import subprocess
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 
 import psutil
 
+from apps.types import ProcessConfig, ProcessProperties, XWindowProperties
 from config import config
-
-
-@dataclass
-class ProcessConfig:
-    """ManagedApp struct for supplying data to new application instances"""
-
-    process_name: str
-    process_params: list[str]
-    wm_class_target: str
-    wm_name_target: str
-
-
-@dataclass
-class ProcessProperties:
-    """ManagedApp struct for organising handles for active applications"""
-
-    pg_id: int
-    process_id: int
-    window_id: int
-
-
-@dataclass
-class XWindowProperties:
-    wm_class: str
-    wm_pid: int
-    wm_name: str
 
 
 class ManagedApp(ABC):
@@ -83,6 +57,20 @@ class ManagedApp(ABC):
         if not (wm_name and wm_class and wm_pid):
             return None
         return XWindowProperties(wm_class, wm_pid, wm_name)
+
+    def get_process_properties(self) -> ProcessProperties:
+        if not self.process_properties:
+            raise ValueError(
+                "Attempted to fetch Process Properties before initilisation"
+            )
+        return self.process_properties
+
+    def find_window_name(self):
+        window_id = self.get_process_properties().window_id
+        result = subprocess.check_output(
+            ["xprop", "-id", str(window_id), "WM_NAME"]
+        ).decode()
+        return result
 
     async def _start_process_with_window(self):
         """Open an instance of process defined by ManagedApp process_config - wait for timeout and return new window ID's"""
@@ -176,61 +164,3 @@ class ManagedApp(ABC):
     @abstractmethod
     async def focus(self):
         pass
-
-
-class DiscordApp(ManagedApp):
-    process_config = ProcessConfig(
-        process_name="discord",
-        process_params=["--remote-debugging-port=9222"],
-        wm_class_target="discord",
-        wm_name_target="discord",
-    )
-
-    process_properties: ProcessProperties | None = None
-
-    def can_locate_window(self) -> bool:
-        return True
-
-    def can_interact(self) -> bool:
-        return True
-
-    async def focus(self):
-        pass
-
-
-class MpvApp(ManagedApp):
-    process_config = ProcessConfig(
-        process_name="mpv",
-        process_params=["--player-operation-mode=pseudo-gui"],
-        wm_class_target="mpv",
-        wm_name_target="mpv",
-    )
-
-    process_properties: ProcessProperties | None = None
-
-    def can_locate_window(self) -> bool:
-        return True
-
-    def can_interact(self) -> bool:
-        return True
-
-    async def focus(self):
-        pass
-
-
-async def test_app():
-    dc = DiscordApp()
-    print("Launching discord result:\t", end="")
-    print(await dc.launch())
-    pc = psutil.Process(dc.process_properties.process_id)
-    window_info = subprocess.check_output(
-        ["xwininfo", "-id", str(dc.process_properties.window_id)],
-    ).decode()
-    print(window_info)
-
-    print(f"Discord process running:\t{dc.is_running()}")
-    print(f"Discord process status: \t{pc.status()}")
-    print("Terminating Discord")
-    await dc.terminate()
-    print(f"Discord process running:\t{dc.is_running()}")
-    print(f"Discord process status: \t{pc.status()}")

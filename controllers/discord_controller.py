@@ -3,7 +3,7 @@ from typing import Type
 
 from controllers.controller import AppController
 from controllers.task import AppTask
-from models.broadcaster import Broadcaster
+from utils.broadcaster import Broadcaster
 
 
 class ManagedApp:
