@@ -1,6 +1,10 @@
 from dataclasses import dataclass
 from typing import Literal
 
+from requests import utils
+
+import apps.discord_session_utils as utils
+
 
 @dataclass
 class DiscordChannel:
@@ -15,4 +19,9 @@ class DiscordServer:
     id: str
     name: str
     image_url: str
-    channels: list[DiscordChannel]
+    channels: dict[str, DiscordChannel]
+
+    def get_channels(
+        self, type: Literal["any", "text", "voice"]
+    ) -> list[DiscordChannel]:
+        return utils.get_channels(self.channels, type)
