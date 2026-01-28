@@ -11,7 +11,6 @@ from playwright.async_api import (
     Playwright,
     async_playwright,
 )
-from requests.models import LocationParseError
 
 import apps.discord_session_utils as utils
 from config import config

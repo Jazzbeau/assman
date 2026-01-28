@@ -127,7 +127,7 @@ class ManagedApp(ABC):
         )
         return self.is_running()
 
-    def is_running(self) -> bool:
+    async def is_running(self) -> bool:
         if not (self.process_properties and self.process_properties.process_id):
             return False
         process = psutil.Process(self.process_properties.process_id)
@@ -136,11 +136,11 @@ class ManagedApp(ABC):
         return False
 
     @abstractmethod
-    def can_locate_window(self) -> bool:
+    async def is_locatable(self) -> bool:
         pass
 
     @abstractmethod
-    def can_interact(self) -> bool:
+    async def is_interactable(self) -> bool:
         pass
 
     async def terminate(self) -> bool:

@@ -24,10 +24,10 @@ class DiscordApp(ManagedApp):
 
     # Heartbeat implementations
 
-    def can_interact(self) -> bool:
+    async def is_interactable(self) -> bool:
         raise NotImplementedError()
 
-    def can_locate_window(self) -> bool:
+    async def is_locatable(self) -> bool:
         raise NotImplementedError()
 
     # Playwright Setup
@@ -64,7 +64,7 @@ class DiscordApp(ManagedApp):
     ) -> list[DiscordChannel]:
         if not self.session:
             raise RuntimeError("Cannot fetch server without playwright initialisation")
-        return self.session.get_channels(type)
+        return self.session.get_channels(channel_type)
 
     def get_server_by_id(self, id) -> DiscordServer:
         if not self.session:
