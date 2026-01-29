@@ -1,49 +1,18 @@
 import asyncio
+from enum import Enum
 import time
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from enum import Enum
-from typing import Any, Awaitable, Callable, Dict, Generic, Type, TypeVar
+from typing import Any, Dict, Generic, Literal, Type, TypeVar
 from uuid import uuid4
 
 from apps.managed_app import ManagedApp
+from controllers.controller_types import (
+    BaseHealthCheckType,
+    GenericTaskTypes,
+    HealthCheck,
+    HealthState,
+)
 from controllers.task import AppTask, TaskStatus
-
-
-class HealthState(Enum):
-    INITIALISING = "initialising"
-    HEALTHY = "healthy"
-    STOPPED = "stopped"
-    MISSING = "missing"
-    ERROR = "error"
-    DEGRADED = "degraded"
-
-
-class GenericTasks(Enum):
-    HEALTHUPDATE = "health_update"
-    TASKUPDATE = "task_update"
-
-
-class BaseHealthCheckType(Enum):
-    IS_RUNNING = "is_running"
-    IS_INTERACTABLE = "is_interactable"
-    IS_VISIBLE = "is_visible"
-
-
-@dataclass
-class HealthCheck:
-    """Callback wrapper with additional utility functions attached"""
-
-    check_type: Enum  # Validate later, any enum now
-    # Must be passed argumentless callback async function that returns bool
-    executor: Callable[[], Awaitable[bool]]
-
-    async def execute(self) -> bool:
-        return await self.executor()
-
-    def is_base_check(self) -> bool:
-        return isinstance(self.check_type, BaseHealthCheckType)
-
 
 # Define
 T = TypeVar("T", bound="ManagedApp")
@@ -51,12 +20,6 @@ T = TypeVar("T", bound="ManagedApp")
 
 class AppController(ABC, Generic[T]):
     """Base implementation of common AppController descendant components"""
-
-    @property
-    @abstractmethod
-    def app_name(self) -> str:
-        """Subclass must implement"""
-        pass
 
     def __init__(self, broadcaster):
         self.broadcaster = broadcaster
@@ -78,17 +41,6 @@ class AppController(ABC, Generic[T]):
         """Start background tasks - not related to underlying ManagedApp"""
         asyncio.create_task(self.heartbeat())
         asyncio.create_task(self.process_tasks())
-
-    @abstractmethod
-    def get_app(self) -> T:
-        """Sub controller must return app"""
-        pass
-
-    # Task execution
-    @abstractmethod
-    async def execute_task(self, task: AppTask) -> Any:
-        """Subclass to implement execution workflow - accepts task object with type and parameters"""
-        pass
 
     # Heartbeat + Healthchecks
     async def broadcast_health(self):
@@ -112,10 +64,6 @@ class AppController(ABC, Generic[T]):
         # Call the subclass handler for domain specific health failures, they may or may not be critical
         await self.handle_app_check_failures(app_health_failures)
 
-    @abstractmethod
-    async def handle_app_check_failures(self, failed_checks: list[HealthCheck]) -> None:
-        raise NotImplementedError
-
     def get_health_checks(self) -> list[HealthCheck]:
         """
         Return concatenation of generic heartbeat HealthChecks with domain specific activity based HealthChecks
@@ -129,11 +77,6 @@ class AppController(ABC, Generic[T]):
         # Get result of app domain health check builder
         app_checks: list[HealthCheck] = self.get_app_health_checks()
         return base_checks + app_checks
-
-    @abstractmethod
-    def get_app_health_checks(self) -> list[HealthCheck]:
-        """Return HealthChecks related to app and its activity dependant health checks"""
-        raise NotImplementedError
 
     async def heartbeat(self):
         """Basic logic for maintaining heartbeat - requires sub controller to implement do_heartbeat()"""
@@ -154,9 +97,9 @@ class AppController(ABC, Generic[T]):
                     self.health_status = HealthState.HEALTHY
 
                 await self.broadcast_health()
-            except Exception as e:
+            except Exception:
                 self.health_status = HealthState.ERROR
-                pass
+                raise NotImplementedError
 
     async def process_tasks(self):
         """Generic task queue manager"""
@@ -169,7 +112,7 @@ class AppController(ABC, Generic[T]):
             task.started_at = time.time()
 
             await self.broadcast(
-                broadcast_type=GenericTasks.TASKUPDATE.value,
+                broadcast_type=GenericTaskTypes.TASK_UPDATE.value,
                 payload={
                     "task_id": task_id,
                     "status": task.status.value,
@@ -183,7 +126,7 @@ class AppController(ABC, Generic[T]):
                 task.status = TaskStatus.COMPLETED
                 task.completed_at = time.time()
                 await self.broadcast(
-                    broadcast_type=GenericTasks.TASKUPDATE.value,
+                    broadcast_type=GenericTaskTypes.TASK_UPDATE.value,
                     payload={
                         "task_id": task_id,
                         "status": task.status.value,
@@ -194,7 +137,7 @@ class AppController(ABC, Generic[T]):
                 task.status = TaskStatus.FAILED
                 task.error = str(e)
                 await self.broadcast(
-                    broadcast_type=GenericTasks.TASKUPDATE.value,
+                    broadcast_type=GenericTaskTypes.TASK_UPDATE.value,
                     payload={
                         "task_id": task_id,
                         "status": task.status.value,
@@ -219,7 +162,7 @@ class AppController(ABC, Generic[T]):
         )
 
         await self.broadcast(
-            broadcast_type=GenericTasks.TASKUPDATE.value,
+            broadcast_type=GenericTaskTypes.TASK_UPDATE.value,
             payload={
                 "task_id": task.id,
                 "status": task.status.value,
@@ -228,3 +171,36 @@ class AppController(ABC, Generic[T]):
         self.active_tasks[task_id] = task
         await self.task_queue.put(task_id)
         return task_id
+
+    def get_valid_task_types(self) -> list[Literal[str]]:
+        app_task_types = [task.value for task in 
+        base_task_types = [task.value for task in GenericTaskTypes]
+
+    @property
+    @abstractmethod
+    def app_name(self) -> str:
+        """Subclass must implement"""
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_app(self) -> T:
+        """Sub controller must return app"""
+        raise NotImplementedError
+
+    @abstractmethod
+    async def execute_task(self, task: AppTask) -> Any:
+        """Subclass to implement execution workflow - accepts task object with type and parameters"""
+        raise NotImplementedError
+
+    @abstractmethod
+    async def handle_app_check_failures(self, failed_checks: list[HealthCheck]) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_app_task_types(self) -> Type[Enum]:
+        pass
+
+    @abstractmethod
+    def get_app_health_checks(self) -> list[HealthCheck]:
+        """Return HealthChecks related to app and its activity dependant health checks"""
+        raise NotImplementedError
