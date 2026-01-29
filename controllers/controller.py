@@ -1,32 +1,39 @@
 import asyncio
-from enum import Enum
 import time
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Generic, Literal, Type, TypeVar
+from asyncio.queues import Queue
+from enum import Enum
+from typing import Any, Callable, Dict, Generic, Literal, Type, TypeVar
 from uuid import uuid4
 
 from apps.managed_app import ManagedApp
-from controllers.controller_types import (
-    BaseHealthCheckType,
-    GenericTaskTypes,
-    HealthCheck,
-    HealthState,
-)
+from controllers.controller_types import (AppActivity, BaseHealthCheckType,
+                                          GenericTaskTypes, HealthCheck,
+                                          HealthState)
 from controllers.task import AppTask, TaskStatus
 
 # Define
 T = TypeVar("T", bound="ManagedApp")
 
+type ValidatorFunction = Callable[[dict | None], bool]
+type ExecutorFunction = Callable[[dict | None], Any]
 
 class AppController(ABC, Generic[T]):
     """Base implementation of common AppController descendant components"""
 
     def __init__(self, broadcaster):
         self.broadcaster = broadcaster
-        self.task_queue = asyncio.Queue()
+        self.task_queue: Queue[str] = asyncio.Queue()
         self.app: T = self.get_app()
+        self.app_name: str = self.get_app_name()
         self.active_tasks: Dict[str, AppTask] = {}
         self.health_status: HealthState = HealthState.STOPPED
+        self.activity: AppActivity | None = None
+        self.base_validators: dict[str, ValidatorFunction] = {
+            GenericTaskTypes.HEALTH_UPDATE.value: lambda _: True,
+            GenericTaskTypes.TASK_UPDATE.value: lambda _: True
+        }
+        self.base_executors: dict[str, ExecutorFunction]
 
     async def broadcast(self, broadcast_type: str, payload: dict):
         """Broadcast standardiser for websocket response"""
@@ -149,12 +156,11 @@ class AppController(ABC, Generic[T]):
 
     async def submit_task(self, task_type: str, params: Dict) -> str:
         """Main entrypoint for task submission"""
-        # Create ID -> create task dict object -> add to active tasks -> add key (ID) to queue for task executor
-        # Generate ID
+        if not self.is_valid_task(task_type, params):
+            raise ValueError()
         task_id = str(uuid4())
         task = AppTask(
             id=task_id,
-            # TODO: Implement per-app enum of valid task types
             type=task_type,
             status=TaskStatus.PENDING,
             params=params,
@@ -172,13 +178,16 @@ class AppController(ABC, Generic[T]):
         await self.task_queue.put(task_id)
         return task_id
 
-    def get_valid_task_types(self) -> list[Literal[str]]:
-        app_task_types = [task.value for task in 
-        base_task_types = [task.value for task in GenericTaskTypes]
+    def get_base_tasks(self) -> list[str]:
+        return [task.value for task in GenericTaskTypes]
 
-    @property
+
+    def is_valid_task(self, task_type: str, params:dict):
+
+
+
     @abstractmethod
-    def app_name(self) -> str:
+    def get_app_name(self) -> str:
         """Subclass must implement"""
         raise NotImplementedError
 
