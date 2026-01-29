@@ -1,3 +1,4 @@
+import time
 from dataclasses import dataclass
 from enum import Enum
 from typing import Awaitable, Callable
@@ -36,3 +37,13 @@ class HealthCheck:
 
     def is_base_check(self) -> bool:
         return isinstance(self.check_type, BaseHealthCheckType)
+
+
+@dataclass
+class AppActivity:
+    end_time: float
+    activity_name: str
+    initialiser: str | None = None
+    start_time: float | None = None
+    terminator: str | None = None
+    metadata: dict = {}
