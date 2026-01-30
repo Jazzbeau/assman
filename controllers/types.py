@@ -1,7 +1,7 @@
-import time
 from dataclasses import dataclass
 from enum import Enum
-from typing import Awaitable, Callable
+from typing import Awaitable, Callable, Any, TypeVar
+from apps.managed_app import ManagedApp
 
 
 class HealthState(Enum):
@@ -13,7 +13,7 @@ class HealthState(Enum):
     DEGRADED = "degraded"
 
 
-class GenericTaskTypes(Enum):
+class GenericTaskType(Enum):
     HEALTH_UPDATE = "health_update"
     TASK_UPDATE = "task_update"
 
@@ -29,7 +29,8 @@ class HealthCheck:
     """Callback wrapper with additional utility functions attached"""
 
     check_type: Enum  # Validate later, any enum now
-    # Must be passed argumentless callback async function that returns bool
+
+    # Must be passed an argumentless callback async function that returns bool
     executor: Callable[[], Awaitable[bool]]
 
     async def execute(self) -> bool:
@@ -47,3 +48,7 @@ class AppActivity:
     start_time: float | None = None
     terminator: str | None = None
     metadata: dict = {}
+
+# Used for abstract base controller to define itself as a base for a ManagedApp subclass
+ManagedAppType = TypeVar("ManagedAppType", bound="ManagedApp")
+

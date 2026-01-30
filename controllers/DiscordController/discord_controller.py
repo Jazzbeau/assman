@@ -1,8 +1,8 @@
 from enum import Enum
 
 from apps.discord_app import DiscordApp
-from controllers.controller import AppController
-from controllers.controller_types import (
+from controllers.AppController.app_controller import AppController
+from controllers.types import (
     HealthCheck,
 )
 from controllers.task import AppTask
@@ -21,6 +21,13 @@ class DiscordHealthCheckType(Enum):
     IS_LOGGED_IN = "is_logged_in"
     IS_IN_VOICE_CHANNEL = "is_in_voice_channel"
     IS_STREAMING = "is_streaming"
+
+##########################################################
+#
+#   Todo: LOTS, need to effectively rewrite this entire
+#   module to work with newer, better AppController logic
+#
+###########################################################
 
 class DiscordAppController(AppController):
     def __init__(self, broadcaster):

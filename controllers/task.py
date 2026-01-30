@@ -3,13 +3,16 @@ from enum import Enum
 from typing import Any, Dict, Optional
 
 
-# TODO: Perhaps rewrite Task as non-dataclass to enable encapsulation of TaskStatus within Task prior to init
 class TaskStatus(Enum):
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
 
+# TODO: This needs to move to enum 'type' structure; make considerations as to what here is relevant, required
+# ADDITIONAL: Consider:
+#               1. Should this live in its own module and not 'types'?
+#               2. If so, should I move anything from types to this module?
 
 @dataclass
 class AppTask:
