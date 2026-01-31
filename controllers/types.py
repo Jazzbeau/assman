@@ -51,4 +51,4 @@ class AppActivity:
 
 # Used for abstract base controller to define itself as a base for a ManagedApp subclass
 ManagedAppType = TypeVar("ManagedAppType", bound="ManagedApp")
-
+ManagedAppTaskType = TypeVar("ManagedAppTaskType", bound="Enum")

@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from asyncio.queues import Queue
 from enum import Enum
 from typing import Any, Awaitable, Callable, Dict, Generic, Type
-from uuid import uuid4
+from uuid import uuid4, UUID
 
 from controllers.types import (
     AppActivity,
@@ -12,21 +12,21 @@ from controllers.types import (
     GenericTaskType,
     HealthCheck,
     HealthState,
+    ManagedAppTaskType,
     ManagedAppType,
 )
 
 from controllers.task import AppTask, TaskStatus
 
-
-class AppController(ABC, Generic[ManagedAppType]):
+class AppController(ABC, Generic[ManagedAppType, ManagedAppTaskType]):
     """Base implementation of common AppController descendant components"""
 
     def __init__(self, broadcaster):
         self.broadcaster = broadcaster
 
         # Tasks queuing 
-        self.task_queue: Queue[str] = asyncio.Queue()
-        self.active_tasks: Dict[str, AppTask] = {}
+        self.task_queue: Queue[UUID] = asyncio.Queue()
+        self.active_tasks: Dict[UUID, AppTask] = {}
 
         self.app: ManagedAppType = self.get_app()
         self.health_status: HealthState = HealthState.STOPPED
@@ -128,7 +128,7 @@ class AppController(ABC, Generic[ManagedAppType]):
                 # Execute task and wait until it returns
                 task.result = await self.execute_task(task)
                 task.status = TaskStatus.COMPLETED
-                task.completed_at = time.time()
+                task.finished_at = time.time()
                 await self.broadcast(
                     broadcast_type=GenericTaskType.TASK_UPDATE.value,
                     payload={
@@ -151,20 +151,11 @@ class AppController(ABC, Generic[ManagedAppType]):
             finally:
                 self.task_queue.task_done()
 
-    async def submit_task(self, task_type: str, params: Dict) -> str:
-        ############### TODO ################
-        #
-        #   Implement 'validator = self.validators.get(task_type)                  
-        #   or whatever that syntax is.
-        #                                  
-        #   ALSO!!! Need to change entire AppTask structure and function
-        #   arguments to change task_type -> Enum for type safety!
-        #
-        #####################################
-        task_id = str(uuid4())
+    async def submit_task(self, task_type: ManagedAppTaskType, params: Dict) -> UUID:
+        task_id = uuid4()
         task = AppTask(
             id=task_id,
-            type=task_type,
+            task_type=task_type,
             status=TaskStatus.PENDING,
             params=params,
             created_at=time.time(),
@@ -197,6 +188,7 @@ class AppController(ABC, Generic[ManagedAppType]):
     #TODO: Determine if this lives in the AppController scope or subclass; with executor implementation this might able to be elevated directly to subclass level; with appropriate broadcast setup for result of executor 
     @abstractmethod
     async def execute_task(self, task: AppTask) -> Any:
+        executor = self.executors.get(task.type)
         raise NotImplementedError
 
     @abstractmethod
