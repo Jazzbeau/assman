@@ -69,6 +69,13 @@ class AppController(
         }
         await self.broadcaster.broadcast(msg)
 
+    # Heartbeat / Health supervisor
+    async def _supervise(self):
+        while True:
+            failure_type = await self._task_failures.get()
+            if failure_type is Failure.CRITICAL:
+                await self.rectify_state()
+
     # Heartbeat + Healthchecks
     async def broadcast_health(self, is_error: bool = False):
         health_broadcast_type = (
@@ -86,6 +93,9 @@ class AppController(
 
     async def start(self):
         print(f"Starting {self.app_name} controller")
+        if self._task_supervisor is None:
+            # Start once, allow start() calls after init
+            await asyncio.create_task(self._supervise())
         self.health_status = HealthState.STARTING
         self._running = True
         await self.app.launch()
@@ -131,7 +141,7 @@ class AppController(
         if generic_core_failed_checks:
             self.health_status = HealthState.ERROR
             await self.broadcast_health(is_error=True)
-            await self.rectify_state()
+            self.report_failure(Failure.CRITICAL)
         elif app_core_failed_checks:
             self.health_status = HealthState.ERROR
             await self.broadcast_health(is_error=True)
@@ -141,6 +151,11 @@ class AppController(
             self.health_status = HealthState.DEGRADED
             await self.broadcast_health(is_error=True)
             await self.handle_activity_health_failures(app_activity_failed_checks)
+
+    def report_failure(self, failure_type: Failure):
+        if failure_type is Failure.CRITICAL:
+            # Don't wait to report.
+            self._task_failures.put_nowait(Failure.CRITICAL)
 
     async def rectify_state(self) -> None:
         print(f"Rectifying state (restarting) for {self.app_name} controller")
