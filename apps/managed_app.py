@@ -10,9 +10,13 @@ from config import config
 
 
 class ManagedApp(ABC):
-    name: str
     process_config: ProcessConfig
     process_properties: ProcessProperties | None
+
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        raise NotImplementedError
 
     def _list_windows(self) -> list[str]:
         """Fetch list of window id's in current display environment"""

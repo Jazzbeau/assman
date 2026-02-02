@@ -15,6 +15,10 @@ class DiscordApp(ManagedApp):
         wm_name_target="discord",
     )
 
+    @property
+    def name(self):
+        return "discord"
+
     def __init__(self):
         self.process_properties: ProcessProperties | None = None
         self.session: DiscordSession | None = None
@@ -25,10 +29,16 @@ class DiscordApp(ManagedApp):
     # Heartbeat implementations
 
     async def is_interactable(self) -> bool:
-        raise NotImplementedError()
+        # DEBUG REMOVE ME DEBUG REMOVE ME 
+        return True
+        # raise NotImplementedError()
 
     async def is_locatable(self) -> bool:
+        # DEBUG REMOVE ME DEBUG REMOVE ME 
+        return True
         raise NotImplementedError()
+
+    # is_running is actually implemented in base class
 
     # Playwright Setup
 
