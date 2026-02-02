@@ -129,7 +129,7 @@ class ManagedApp(ABC):
             window_id=int(valid_window_id),
             pg_id=os.getpgid(valid_window_props.wm_pid),
         )
-        return self.is_running()
+        return await self.is_running()
 
     async def is_running(self) -> bool:
         if not (self.process_properties and self.process_properties.process_id):
