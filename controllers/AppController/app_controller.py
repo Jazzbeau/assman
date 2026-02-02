@@ -95,7 +95,7 @@ class AppController(
         print(f"Starting {self.app_name} controller")
         if self._task_supervisor is None:
             # Start once, allow start() calls after init
-            await asyncio.create_task(self._supervise())
+            asyncio.create_task(self._supervise())
         self.health_status = HealthState.STARTING
         self._running = True
         await self.app.launch()
