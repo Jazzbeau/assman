@@ -13,6 +13,10 @@ AppActivityType = TypeVar("AppActivityType", bound="Enum")
 JSONType = Union[str, int, float, bool, None, Dict[str, "JSONType"], List["JSONType"]]
 
 
+class Failure(Enum):
+    CRITICAL = "critical"
+
+
 class AppBroadcastType(Enum):
     TASK_RUNNING = "task_running"
     TASK_UPDATE = "task_update"
