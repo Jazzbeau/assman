@@ -1,14 +1,17 @@
-from controllers.DiscordController.discord_controller import DiscordAppController, DiscordHealthCheckType
+from apps.discord_app import DiscordApp
 from controllers.controller_types import CoreHealthCheck
+from controllers.DiscordController.discord_types import DiscordHealthCheckType
 
-def get_discord_app_health_checks(controller: DiscordAppController) -> list[CoreHealthCheck[DiscordHealthCheckType]]:
+
+def get_discord_app_health_checks(
+    app: DiscordApp,
+) -> list[CoreHealthCheck[DiscordHealthCheckType]]:
     return [
         CoreHealthCheck(
             check_type=DiscordHealthCheckType.IS_LOGGED_IN,
-            executor=controller.app.is_locatable #Placeholder
+            executor=app.is_locatable,  # Placeholder
         ),
         CoreHealthCheck(
-            check_type=DiscordHealthCheckType.IS_LOGGED_IN,
-            executor=controller.app.is_locatable
-        )
+            check_type=DiscordHealthCheckType.IS_LOGGED_IN, executor=app.is_locatable
+        ),
     ]

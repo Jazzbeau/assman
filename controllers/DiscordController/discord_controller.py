@@ -1,4 +1,3 @@
-from enum import Enum
 from typing import Any, Awaitable, Callable
 
 from apps.discord_app import DiscordApp
@@ -8,48 +7,17 @@ from controllers.controller_types import (
     CoreHealthCheck,
     ExecutorResponse,
 )
+from controllers.DiscordController.discord_types import (
+    DiscordAppActivityType,
+    DiscordAppTaskType,
+    DiscordHealthCheckType,
+)
 from controllers.DiscordController.health_checks.discord_activity_health_checks import (
     get_discord_activity_health_checks,
 )
 from controllers.DiscordController.health_checks.discord_app_health_checks import (
     get_discord_app_health_checks,
 )
-from utils.broadcaster import Broadcaster
-
-
-class DiscordAppTaskType(Enum):
-    """Define enumeration of tasks assignable to AppTask instances
-    These are the tasks which will run within the asynchronous task queue
-    and represent high-level chains of action / workflows within the VM interface
-    """
-
-    JOIN_SERVER = "join_server"
-    SEND_MESSAGE = "send_message"
-    START_SCREENSHARE = "start_screen_share"
-    END_SCREENSHARE = "end_screen_share"
-    LAUNCH = "launch"
-    FETCH_MESSAGES = "fetch_messages"
-    GET_SERVERS = "get_servers"
-
-
-class DiscordAppActivityType(Enum):
-    """Define enumeration of activities assignable to AppController state
-    Represents activity states for the Discord client in the virtual machine;
-    certain tasks such as 'join_voice_channel' should leave the app with
-    'in_voice_channel' activity being set, with 'leave_voice_channel' unsetting
-    the activity.
-
-    Not used to directly execute activites on the virutal machine, but used for
-    conditional HealthCheck injection within the Heartbeat routine, and also for
-    reporting application state to clients.
-    """
-
-    IN_VOICE_CHANNEL = "in_voice_channel"
-    SCREEN_SHARING = "screen_sharing"
-
-
-class DiscordHealthCheckType(Enum):
-    IS_LOGGED_IN = "is_logged_in"
 
 
 class DiscordAppController(
@@ -58,8 +26,10 @@ class DiscordAppController(
     ]
 ):
     def __init__(self, broadcaster):
-        super().__init__(broadcaster)
+        print("controller init start")
         self._app = DiscordApp()
+        super().__init__(broadcaster)
+        print("controller init start")
 
     @property
     def app(self) -> DiscordApp:
@@ -71,7 +41,7 @@ class DiscordAppController(
         List of HealthChecks that are imperative to state management, but are not activity based.
         To be checked in heartbeat whenver app is alive
         """
-        return get_discord_app_health_checks(self)
+        return get_discord_app_health_checks(self.app)
 
     @property
     def activity_health_checks(
