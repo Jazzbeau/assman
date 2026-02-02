@@ -3,22 +3,18 @@ import time
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
-from dev.test import test_app, test_discord, test_routine
-from dev.test_controller import test_controller
+from controllers.DiscordController.discord_controller import DiscordAppController
+from dev.test import test_routine
 from utils.broadcaster import Broadcaster
 
 app = FastAPI()
 broadcaster = Broadcaster()
+discord_controller = DiscordAppController(broadcaster)
 
 
 @app.get("/testwindows")
 async def test_windows():
     await test_routine()
-
-
-@app.get("/testcontroller")
-async def test_controller_route():
-    return await test_controller()
 
 
 @app.websocket("/ws")
@@ -28,12 +24,16 @@ async def websocket_test(websocket: WebSocket):
     print("Client connected")
     try:
         while True:
-            await asyncio.sleep(1)
-            await broadcaster.broadcast(
-                {"message": f"{time.strftime("%I:%M:%S%p on %B %d, %Y")}!!!!"}
-            )
-            # await websocket.receive_text()
+            await websocket.receive_text()
     except WebSocketDisconnect:
         print("Client disconnected")
     finally:
         await broadcaster.disconnect(websocket)
+
+
+@app.get("/testcontroller")
+async def test_controller():
+    print("STARTING CONTROLLER FROM ROUTE")
+    await broadcaster.broadcast({"message": "Hello?"})
+    await discord_controller.start()
+    return
