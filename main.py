@@ -4,6 +4,7 @@ import time
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
 from dev.test import test_app, test_discord, test_routine
+from dev.test_controller import test_controller
 from utils.broadcaster import Broadcaster
 
 app = FastAPI()
@@ -13,6 +14,11 @@ broadcaster = Broadcaster()
 @app.get("/testwindows")
 async def test_windows():
     await test_routine()
+
+
+@app.get("/testcontroller")
+async def test_controller_route():
+    return await test_controller()
 
 
 @app.websocket("/ws")

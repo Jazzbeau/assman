@@ -1,4 +1,3 @@
-from apps.discord_app import DiscordApp
 from controllers.DiscordController.discord_controller import DiscordAppController
 from utils.broadcaster import Broadcaster
 
