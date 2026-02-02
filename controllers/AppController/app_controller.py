@@ -3,17 +3,19 @@ import time
 from abc import ABC, abstractmethod
 from asyncio.queues import Queue
 from typing import Any, Awaitable, Callable, Dict, Generic
-from uuid import uuid4, UUID
+from uuid import UUID, uuid4
 
+from controllers.apptask import AppTask, TaskStatus
 from controllers.controller_types import (
+    ActivityHealthCheck,
     AppActivity,
     AppActivityType,
+    AppBroadcastType,
     AppHealthCheckType,
     BaseHealthCheckType,
-    AppBroadcastType,
-    ExecutorResponse,
-    ActivityHealthCheck,
     CoreHealthCheck,
+    ExecutorResponse,
+    Failure,
     HealthCheckT,
     HealthState,
     JSONType,
@@ -21,10 +23,13 @@ from controllers.controller_types import (
     ManagedAppType,
 )
 
-from controllers.apptask import AppTask, TaskStatus
 
-class AppController(ABC, Generic[ManagedAppType, ManagedAppTaskType, AppActivityType, AppHealthCheckType]):
+class AppController(
+    ABC,
+    Generic[ManagedAppType, ManagedAppTaskType, AppActivityType, AppHealthCheckType],
+):
     """Base implementation of common AppController descendant components"""
+
     def __init__(self, broadcaster):
         self.broadcaster = broadcaster
         self.task_queue: Queue[UUID] = asyncio.Queue()
@@ -32,10 +37,19 @@ class AppController(ABC, Generic[ManagedAppType, ManagedAppTaskType, AppActivity
         self.health_status: HealthState = HealthState.UNINITIALISED
         self.activity: AppActivity | None = None
         self.base_health_checks: list[CoreHealthCheck] = [
-            CoreHealthCheck(check_type=BaseHealthCheckType.RUNNING, executor=self.app.is_running),
-            CoreHealthCheck(check_type=BaseHealthCheckType.INTERACTABLE, executor=self.app.is_interactable),
-            CoreHealthCheck(check_type=BaseHealthCheckType.VISIBLE, executor=self.app.is_locatable),
+            CoreHealthCheck(
+                check_type=BaseHealthCheckType.RUNNING, executor=self.app.is_running
+            ),
+            CoreHealthCheck(
+                check_type=BaseHealthCheckType.INTERACTABLE,
+                executor=self.app.is_interactable,
+            ),
+            CoreHealthCheck(
+                check_type=BaseHealthCheckType.VISIBLE, executor=self.app.is_locatable
+            ),
         ]
+        self._task_supervisor: asyncio.Task | None = None
+        self._task_failures: asyncio.Queue[Failure] = asyncio.Queue()
         self._event_tasks: set[asyncio.Task] = set()
         self._running: bool = False
 
@@ -44,24 +58,30 @@ class AppController(ABC, Generic[ManagedAppType, ManagedAppTaskType, AppActivity
         """Define ManagedApp subclass name for controller"""
         return self.app.name
 
-    async def broadcast(self, broadcast_type: AppBroadcastType, payload: dict[str, JSONType]):
+    async def broadcast(
+        self, broadcast_type: AppBroadcastType, payload: dict[str, JSONType]
+    ):
         """Broadcast standardiser for websocket response"""
         msg = {
             "app": self.app_name,
             "message_type": broadcast_type.value,
-            "payload": payload
+            "payload": payload,
         }
         await self.broadcaster.broadcast(msg)
 
     # Heartbeat + Healthchecks
     async def broadcast_health(self, is_error: bool = False):
-        health_broadcast_type = AppBroadcastType.HEALTH_ERROR if is_error else AppBroadcastType.HEALTH_UPDATE
+        health_broadcast_type = (
+            AppBroadcastType.HEALTH_ERROR
+            if is_error
+            else AppBroadcastType.HEALTH_UPDATE
+        )
         await self.broadcast(
             broadcast_type=health_broadcast_type,
             payload={
-                "activity":self.activity.to_dict() if self.activity else None,
-                "health_status":self.health_status.value,
-            }
+                "activity": self.activity.to_dict() if self.activity else None,
+                "health_status": self.health_status.value,
+            },
         )
 
     async def start(self):
@@ -70,7 +90,9 @@ class AppController(ABC, Generic[ManagedAppType, ManagedAppTaskType, AppActivity
         self._running = True
         await self.app.launch()
         self._event_tasks.add(asyncio.create_task(self.heartbeat(), name="heartbeat"))
-        self._event_tasks.add(asyncio.create_task(self.process_tasks(), name="process_tasks"))
+        self._event_tasks.add(
+            asyncio.create_task(self.process_tasks(), name="process_tasks")
+        )
 
     async def stop(self):
         if not self._running:
@@ -88,13 +110,23 @@ class AppController(ABC, Generic[ManagedAppType, ManagedAppTaskType, AppActivity
         self._event_tasks.clear()
         await self.app.terminate()
 
-
-
     async def handle_check_failures(self, failed_checks: list[HealthCheckT]) -> None:
         print(f"Handling failures for {self.app_name} controller")
-        generic_core_failed_checks = [check for check in failed_checks if isinstance(check, CoreHealthCheck) and isinstance(check.check_type, BaseHealthCheckType)]
-        app_core_failed_checks = [check for check in failed_checks if isinstance(check, CoreHealthCheck) and not isinstance(check.check_type, BaseHealthCheckType)]
-        app_activity_failed_checks = [check for check in failed_checks if isinstance(check, ActivityHealthCheck)]
+        generic_core_failed_checks = [
+            check
+            for check in failed_checks
+            if isinstance(check, CoreHealthCheck)
+            and isinstance(check.check_type, BaseHealthCheckType)
+        ]
+        app_core_failed_checks = [
+            check
+            for check in failed_checks
+            if isinstance(check, CoreHealthCheck)
+            and not isinstance(check.check_type, BaseHealthCheckType)
+        ]
+        app_activity_failed_checks = [
+            check for check in failed_checks if isinstance(check, ActivityHealthCheck)
+        ]
 
         if generic_core_failed_checks:
             self.health_status = HealthState.ERROR
@@ -120,10 +152,16 @@ class AppController(ABC, Generic[ManagedAppType, ManagedAppTaskType, AppActivity
         print(f"Fetching health checks for {self.app_name} controller")
         checks: list[HealthCheckT] = [*self.base_health_checks, *self.app_health_checks]
         if self.activity:
-            print(f"Found activity: {self.activity.activity_type.value} getting health checks for {self.app_name} controller")
-            current_activity_checks = self.activity_health_checks.get(self.activity.activity_type)
+            print(
+                f"Found activity: {self.activity.activity_type.value} getting health checks for {self.app_name} controller"
+            )
+            current_activity_checks = self.activity_health_checks.get(
+                self.activity.activity_type
+            )
             if current_activity_checks is None:
-                raise ValueError(f"Activity: {self.activity.activity_type} did not have a corresponding checks list; even if none required, check list must be initialised")
+                raise ValueError(
+                    f"Activity: {self.activity.activity_type} did not have a corresponding checks list; even if none required, check list must be initialised"
+                )
             checks.extend(current_activity_checks)
         return checks
 
@@ -152,9 +190,10 @@ class AppController(ABC, Generic[ManagedAppType, ManagedAppTaskType, AppActivity
             self.health_status = HealthState.STOPPED
             raise
 
-
     # Task runner
-    async def submit_task(self, task_type: ManagedAppTaskType, params: Dict[str, Any]) -> UUID:
+    async def submit_task(
+        self, task_type: ManagedAppTaskType, params: Dict[str, Any]
+    ) -> UUID:
         """Create and enque a task for processing.
         Contructs new AppTask, broadcast event, adds to task queue and task pool for processing via process_tasks.
 
@@ -163,12 +202,14 @@ class AppController(ABC, Generic[ManagedAppType, ManagedAppTaskType, AppActivity
             params: Dictionary of task-specific arugments to pass to the executor, see ManagedApp executors dict entry for task_type enum key.
 
         Returns:
-            The UUID of the newly created task, allowing the submitter (i.e. FastAPI route handler -> Frontend) to track status of task. 
+            The UUID of the newly created task, allowing the submitter (i.e. FastAPI route handler -> Frontend) to track status of task.
         """
         print(f"Submitting task {task_type.value} for {self.app_name} controller")
         param_validator = self.validators.get(task_type)
         if not param_validator:
-            raise ValueError(f"Task validation failed - no validator found for task of type {task_type.value}")
+            raise ValueError(
+                f"Task validation failed - no validator found for task of type {task_type.value}"
+            )
         try:
             param_validator(params)
         except ValueError as e:
@@ -178,32 +219,33 @@ class AppController(ABC, Generic[ManagedAppType, ManagedAppTaskType, AppActivity
             params=params,
         )
         await self.broadcast(
-            broadcast_type=AppBroadcastType.TASK_CREATE,
-            payload=task.to_dict()
+            broadcast_type=AppBroadcastType.TASK_CREATE, payload=task.to_dict()
         )
         self.active_tasks[task.id] = task
-        print(f"Enqueing task {task.id} {task.task_type.value} for {self.app_name} controller")
+        print(
+            f"Enqueing task {task.id} {task.task_type.value} for {self.app_name} controller"
+        )
         await self.task_queue.put(task.id)
         return task.id
 
     async def process_tasks(self):
         """Process tasks from the queue sequentially.
-        
+
         Continuously pulls tasks from the task queue, executes them, and broadcasts
         their lifecycle events. Tasks are executed one at a time in FIFO order.
-        
+
         For each task:
         1. Updates status to RUNNING and broadcasts task start
         2. Executes the task via its registered executor
         3. On success: marks COMPLETED and broadcasts finish
         4. On failure: marks FAILED, captures error, and broadcasts error
-        
+
         Broadcasts:
             TASK_RUNNING: When task execution begins
             TASK_FINISH: When task completes successfully
             TASK_ERROR: When task fails with exception
             APP_RESPONSE: When executor produces data (via execute_task)
-        
+
         This method runs indefinitely and should be started as a background task.
         """
         try:
@@ -216,8 +258,7 @@ class AppController(ABC, Generic[ManagedAppType, ManagedAppTaskType, AppActivity
                 task.started_at = time.time()
 
                 await self.broadcast(
-                    broadcast_type=AppBroadcastType.TASK_RUNNING,
-                    payload=task.to_dict()
+                    broadcast_type=AppBroadcastType.TASK_RUNNING, payload=task.to_dict()
                 )
 
                 try:
@@ -226,7 +267,7 @@ class AppController(ABC, Generic[ManagedAppType, ManagedAppTaskType, AppActivity
                     task.finished_at = time.time()
                     await self.broadcast(
                         broadcast_type=AppBroadcastType.TASK_FINISH,
-                        payload=task.to_dict()
+                        payload=task.to_dict(),
                     )
                 except Exception as e:
                     task.status = TaskStatus.FAILED
@@ -234,7 +275,7 @@ class AppController(ABC, Generic[ManagedAppType, ManagedAppTaskType, AppActivity
                     task.error = str(e)
                     await self.broadcast(
                         broadcast_type=AppBroadcastType.TASK_ERROR,
-                        payload=task.to_dict()
+                        payload=task.to_dict(),
                     )
                 finally:
                     self.task_queue.task_done()
@@ -245,7 +286,7 @@ class AppController(ABC, Generic[ManagedAppType, ManagedAppTaskType, AppActivity
     async def execute_task(self, task: AppTask) -> Any:
         """Route task to its corresponding executor, and broadcast responses.
 
-        Retrieves executor via dictionary dispatcher mapping - executes it using app instance with 
+        Retrieves executor via dictionary dispatcher mapping - executes it using app instance with
         AppTask provided parameters. Broadcasts result as an APP_RESPONSE if the executor returns a
         ExecutorResponse.
 
@@ -255,14 +296,14 @@ class AppController(ABC, Generic[ManagedAppType, ManagedAppTaskType, AppActivity
         print(f"Attempting to execute task: {task.task_type.value}")
         executor = self.executors.get(task.task_type)
         if not executor:
-            raise ValueError(f"Execution failed - no executor found for task of type {task.task_type.value}")
+            raise ValueError(
+                f"Execution failed - no executor found for task of type {task.task_type.value}"
+            )
         res = await executor(self.app, task.params)
         if res:
             await self.broadcast(
-                broadcast_type= AppBroadcastType.APP_RESPONSE,
-                payload=res.to_dict()
+                broadcast_type=AppBroadcastType.APP_RESPONSE, payload=res.to_dict()
             )
-
 
     @property
     @abstractmethod
@@ -271,19 +312,23 @@ class AppController(ABC, Generic[ManagedAppType, ManagedAppTaskType, AppActivity
         raise NotImplementedError
 
     @abstractmethod
-    async def handle_app_health_failures(self, failed_checks: list[CoreHealthCheck]) -> None:
+    async def handle_app_health_failures(
+        self, failed_checks: list[CoreHealthCheck]
+    ) -> None:
         raise NotImplementedError
 
     @abstractmethod
-    async def handle_activity_health_failures(self, failed_checks: list[ActivityHealthCheck]) -> None:
+    async def handle_activity_health_failures(
+        self, failed_checks: list[ActivityHealthCheck]
+    ) -> None:
         raise NotImplementedError
 
     @property
     @abstractmethod
     def validators(self) -> dict[ManagedAppTaskType, Callable[[dict[str, Any]], bool]]:
-        """Define dictionary of synchronous Generic[AppTask] parameter validation functions indexed using 
+        """Define dictionary of synchronous Generic[AppTask] parameter validation functions indexed using
         Generic[ManagedAppTaskType] enum.
-        
+
         Stored functions must be synchronous and must be passed a parameter dictionary; even if empty.
 
         Should maintain alignment with keys in self.executors sourced via Generic[ManagedAppTaskType] values
@@ -295,9 +340,14 @@ class AppController(ABC, Generic[ManagedAppType, ManagedAppTaskType, AppActivity
 
     @property
     @abstractmethod
-    def executors(self) -> dict[ManagedAppTaskType, Callable[[ManagedAppType, dict[str, Any]], Awaitable[ExecutorResponse | None]]]:
+    def executors(
+        self,
+    ) -> dict[
+        ManagedAppTaskType,
+        Callable[[ManagedAppType, dict[str, Any]], Awaitable[ExecutorResponse | None]],
+    ]:
         """Define dictionary of asynchronous Generic[AppTask] executor functions indexed using Generic[ManagedAppTaskType] enum.
-        Stored functions must be asynchronous and accept Generic[ManagedAppType] + Params dictionary; and may only return 
+        Stored functions must be asynchronous and accept Generic[ManagedAppType] + Params dictionary; and may only return
         ExecutorResponse, or nothing.
 
         Should maintain alignment with keys in self.validators sourced via Generic[ManagedAppTaskType] values
@@ -310,20 +360,22 @@ class AppController(ABC, Generic[ManagedAppType, ManagedAppTaskType, AppActivity
 
     @property
     @abstractmethod
-    def activity_health_checks(self) -> dict[AppActivityType, list[ActivityHealthCheck]]:
+    def activity_health_checks(
+        self,
+    ) -> dict[AppActivityType, list[ActivityHealthCheck]]:
         """Define dictionary of Generic[AppActivityType] Enum indexed mappings to HealthCheck lists.
-        HealthCheck lists may be supersets of associated, lesser activities.  
+        HealthCheck lists may be supersets of associated, lesser activities.
 
         Example:
         Discord's 'ScreenSharing' is a subactivity of 'InVoiceChannel', therefore concatenates the
-        HealthCheck of the 'InVoiceChannel' check with an additional check for 'ScreenSharing' state. 
+        HealthCheck of the 'InVoiceChannel' check with an additional check for 'ScreenSharing' state.
 
         Args:
             None / self
 
         Returns:
             List of relevant HealthChecks for a given AppActivityType, which may itself be a concatenation of another AppActivities
-            assocaited HealthCheck, for instance - Discord's ScreenSharing HealthChecks might include InVoiceChannels checks 
+            assocaited HealthCheck, for instance - Discord's ScreenSharing HealthChecks might include InVoiceChannels checks
         """
         raise NotImplementedError
 
