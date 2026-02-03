@@ -104,6 +104,9 @@ class AppController(
             asyncio.create_task(self.process_tasks(), name="process_tasks")
         )
 
+    def is_running(self):
+        return self._running
+
     async def stop(self):
         if not self._running:
             raise RuntimeError("Cannot stop non-running controller")
