@@ -154,7 +154,7 @@ class ManagedApp(ABC):
             )
         process = psutil.Process(self.process_properties.process_id)
         process.kill()
-        if self.is_running():
+        if await self.is_running():
             return False
         return True
 
