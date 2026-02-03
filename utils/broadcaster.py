@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime
 from typing import Set
 
 from fastapi import WebSocket
@@ -19,15 +20,17 @@ class Broadcaster:
         async with self._lock:
             self._connections.discard(websocket)
 
-    async def broadcast(self, message: dict[str, JSONType], message_type: AppBroadcastType | None = None):
+    async def broadcast(
+        self, message: dict[str, JSONType], message_type: AppBroadcastType | None = None
+    ):
         async with self._lock:
             connections = self._connections
 
         broadcast = message
+        broadcast["timestamp"] = datetime.now().isoformat()
 
         if message_type:
-            broadcast['message_type'] = message_type.value
-
+            broadcast["message_type"] = message_type.value
 
         await asyncio.gather(
             # Broadcast to all connected sockets
