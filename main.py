@@ -1,15 +1,29 @@
-import asyncio
-import time
+from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, WebSocket, WebSocketDisconnect
 
 from controllers.DiscordController.discord_controller import DiscordAppController
+from dependencies import get_broadcaster, get_discord_controller
 from dev.test import test_routine
 from utils.broadcaster import Broadcaster
 
-app = FastAPI()
-broadcaster = Broadcaster()
-discord_controller = DiscordAppController(broadcaster)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print("Starting the A.S.S.M.A.N.")
+    broadcaster = Broadcaster()
+    discord_controller = DiscordAppController(broadcaster)
+
+    app.state.broadcaster = broadcaster
+    app.state.discord_controller = discord_controller
+
+    yield
+
+    if discord_controller.is_running():
+        await discord_controller.stop()
+
+
+app = FastAPI(lifespan=lifespan)
 
 
 @app.get("/testwindows")
@@ -18,7 +32,7 @@ async def test_windows():
 
 
 @app.websocket("/ws")
-async def websocket_test(websocket: WebSocket):
+async def websocket_connect(websocket: WebSocket, broadcaster=Depends(get_broadcaster)):
     await websocket.accept()
     await broadcaster.connect(websocket)
     print("Client connected")
@@ -31,9 +45,9 @@ async def websocket_test(websocket: WebSocket):
         await broadcaster.disconnect(websocket)
 
 
-@app.get("/testcontroller")
-async def test_controller():
-    print("STARTING CONTROLLER FROM ROUTE")
-    await broadcaster.broadcast({"message": "Hello?"})
+@app.get("/start")
+async def start_discord(
+    discord_controller: DiscordAppController = Depends(get_discord_controller),
+):
     await discord_controller.start()
     return
