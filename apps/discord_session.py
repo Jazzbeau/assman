@@ -97,6 +97,9 @@ class DiscordSession:
     def get_servers(self) -> dict[str, DiscordServer]:
         return self.server_list
 
+    def get_servers_as_list(self) -> list[DiscordServer]:
+        return list(self.server_list.values())
+
     def get_channels(
         self,
         channel_type: Literal["any", "voice", "text"] = "any",
