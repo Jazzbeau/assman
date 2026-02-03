@@ -26,10 +26,8 @@ class DiscordAppController(
     ]
 ):
     def __init__(self, broadcaster):
-        print("controller init start")
         self._app = DiscordApp()
         super().__init__(broadcaster)
-        print("controller init start")
 
     @property
     def app(self) -> DiscordApp:
