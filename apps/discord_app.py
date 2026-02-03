@@ -3,6 +3,7 @@ from typing import Literal
 from apps.discord_session import DiscordSession
 from apps.managed_app import ManagedApp
 from apps.types import ProcessConfig, ProcessProperties
+from assman_types import JSONType
 from config import config
 from models.discord_server import DiscordChannel, DiscordServer
 
@@ -29,22 +30,21 @@ class DiscordApp(ManagedApp):
     # Heartbeat implementations
 
     async def is_interactable(self) -> bool:
-        # DEBUG REMOVE ME DEBUG REMOVE ME 
+        # DEBUG REMOVE ME DEBUG REMOVE ME
         return True
         # raise NotImplementedError()
 
     async def is_locatable(self) -> bool:
-        # DEBUG REMOVE ME DEBUG REMOVE ME 
+        # DEBUG REMOVE ME DEBUG REMOVE ME
         return True
         raise NotImplementedError()
 
     # is_running is actually implemented in base class
 
     # Playwright Setup
-
     async def start_playwright(self):
         self.session = DiscordSession(self)
-        if not self.is_running():
+        if not await self.is_running():
             raise RuntimeError(
                 "Cannot start playwright on uninitilaised application instance"
             )
@@ -64,17 +64,23 @@ class DiscordApp(ManagedApp):
 
     # Getters
 
-    def get_servers(self) -> dict[str, DiscordServer]:
+    def get_servers(self) -> list[dict[str, JSONType]]:
         if not self.session:
             raise RuntimeError("Cannot fetch servers without playwright initialisation")
-        return self.session.get_servers()
+        server_list = [
+            server.to_dict() for server in self.session.get_servers_as_list()
+        ]
+        return server_list
 
     def get_channels(
-        self, channel_type: Literal["any", "voice", "text"]
-    ) -> list[DiscordChannel]:
+        self, channel_type: Literal["any", "voice", "text"] = "any"
+    ) -> list[dict[str, JSONType]]:
         if not self.session:
             raise RuntimeError("Cannot fetch server without playwright initialisation")
-        return self.session.get_channels(channel_type)
+        channels = [
+            channel.to_dict() for channel in self.session.get_channels(channel_type)
+        ]
+        return channels
 
     def get_server_by_id(self, id) -> DiscordServer:
         if not self.session:

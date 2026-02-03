@@ -1,17 +1,18 @@
-from typing import Any, Awaitable, Callable
-
 from apps.discord_app import DiscordApp
 from controllers.AppController.app_controller import AppController
 from controllers.controller_types import (
     ActivityHealthCheck,
     CoreHealthCheck,
-    ExecutorResponse,
+    ExecutorCallable,
+    ValidatorCallable,
 )
+from controllers.DiscordController.discord_executors import get_discord_executors
 from controllers.DiscordController.discord_types import (
     DiscordAppActivityType,
     DiscordAppTaskType,
     DiscordHealthCheckType,
 )
+from controllers.DiscordController.discord_validators import get_discord_validators
 from controllers.DiscordController.health_checks.discord_activity_health_checks import (
     get_discord_activity_health_checks,
 )
@@ -49,7 +50,17 @@ class DiscordAppController(
         Dictionary of activity indexed HealthCheck lists that are assocaited with specific activity states
         lists may be superset of another health check, i.e. SCREEN_SHARING includes the checks for IN_VOICE_CHANNEL + additional
         """
-        return get_discord_activity_health_checks(self)
+        return get_discord_activity_health_checks(self.app)
+
+    @property
+    def executors(
+        self,
+    ) -> dict[DiscordAppTaskType, ExecutorCallable]:
+        return get_discord_executors()
+
+    @property
+    def validators(self) -> dict[DiscordAppTaskType, ValidatorCallable]:
+        return get_discord_validators()
 
     async def handle_app_health_failures(self, failed_checks: list[CoreHealthCheck]):
         raise NotImplementedError
@@ -59,17 +70,5 @@ class DiscordAppController(
     ) -> None:
         raise NotImplementedError
 
-    @property
-    def executors(
-        self,
-    ) -> dict[
-        DiscordAppTaskType,
-        Callable[[DiscordApp, dict[str, Any]], Awaitable[ExecutorResponse | None]],
-    ]:
-        # return get_discord_executors()
-        return {}
-
-    @property
-    def validators(self) -> dict[DiscordAppTaskType, Callable[[dict[str, Any]], bool]]:
-        # return get_discord_validators()
-        return {}
+    async def start_playwright(self) -> None:
+        await self.app.start_playwright()

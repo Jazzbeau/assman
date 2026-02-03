@@ -3,8 +3,8 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, WebSocket, WebSocketDisconnect
 
 from controllers.DiscordController.discord_controller import DiscordAppController
-from dependencies import get_broadcaster, get_discord_controller
-from dev.test import test_routine
+from dependencies import get_broadcaster
+from routers.discord_router import router as discord_router
 from utils.broadcaster import Broadcaster
 
 
@@ -24,11 +24,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
-
-
-@app.get("/testwindows")
-async def test_windows():
-    await test_routine()
+app.include_router(discord_router, prefix="/discord")
 
 
 @app.websocket("/ws")
@@ -43,11 +39,3 @@ async def websocket_connect(websocket: WebSocket, broadcaster=Depends(get_broadc
         print("Client disconnected")
     finally:
         await broadcaster.disconnect(websocket)
-
-
-@app.get("/start")
-async def start_discord(
-    discord_controller: DiscordAppController = Depends(get_discord_controller),
-):
-    await discord_controller.start()
-    return

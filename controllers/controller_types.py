@@ -1,16 +1,21 @@
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Awaitable, Callable, Dict, Generic, List, TypeAlias, TypeVar, Union
+from typing import Any, Awaitable, Callable, Generic, TypeAlias, TypeVar, Union
 
+from apps.discord_app import DiscordApp
 from apps.managed_app import ManagedApp
+from assman_types import JSONType
 
 # Generics for AppController subclass definitions
 ManagedAppType = TypeVar("ManagedAppType", bound="ManagedApp")
 ManagedAppTaskType = TypeVar("ManagedAppTaskType", bound="Enum")
 AppActivityType = TypeVar("AppActivityType", bound="Enum")
 
-JSONType = Union[str, int, float, bool, None, Dict[str, "JSONType"], List["JSONType"]]
+ExecutorCallable: TypeAlias = Callable[
+    ["DiscordApp", dict[str, Any]], Awaitable["ExecutorResponse | None"]
+]
+ValidatorCallable: TypeAlias = Callable[[dict[str, Any]], bool]
 
 
 class Failure(Enum):
@@ -34,12 +39,12 @@ class AppBroadcastType(Enum):
 
 
 @dataclass
-class ExecutorResponse:
-    response_name: str
+class ExecutorResponse(Generic[ManagedAppTaskType]):
+    response_name: ManagedAppTaskType
     payload: dict[str, JSONType]
 
     def to_dict(self) -> dict[str, JSONType]:
-        return {"response_name": self.response_name, **self.payload}
+        return {"response_name": self.response_name.value, **self.payload}
 
 
 @dataclass

@@ -37,6 +37,7 @@ class DiscordAppTaskType(Enum):
     LAUNCH = "launch"
     FETCH_MESSAGES = "fetch_messages"
     GET_SERVERS = "get_servers"
+    LEARN_SERVERS = "learn_servers"
 
 
 class DiscordHealthCheckType(Enum):

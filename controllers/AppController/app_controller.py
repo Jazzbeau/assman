@@ -2,9 +2,10 @@ import asyncio
 import time
 from abc import ABC, abstractmethod
 from asyncio.queues import Queue
-from typing import Any, Awaitable, Callable, Dict, Generic
-from uuid import UUID, uuid4
+from typing import Any, Dict, Generic
+from uuid import UUID
 
+from assman_types import JSONType
 from controllers.apptask import AppTask, TaskStatus
 from controllers.controller_types import (
     ActivityHealthCheck,
@@ -14,13 +15,13 @@ from controllers.controller_types import (
     AppHealthCheckType,
     BaseHealthCheckType,
     CoreHealthCheck,
-    ExecutorResponse,
+    ExecutorCallable,
     Failure,
     HealthCheckT,
     HealthState,
-    JSONType,
     ManagedAppTaskType,
     ManagedAppType,
+    ValidatorCallable,
 )
 
 
@@ -343,7 +344,7 @@ class AppController(
 
     @property
     @abstractmethod
-    def validators(self) -> dict[ManagedAppTaskType, Callable[[dict[str, Any]], bool]]:
+    def validators(self) -> dict[ManagedAppTaskType, ValidatorCallable]:
         """Define dictionary of synchronous Generic[AppTask] parameter validation functions indexed using
         Generic[ManagedAppTaskType] enum.
 
@@ -360,10 +361,7 @@ class AppController(
     @abstractmethod
     def executors(
         self,
-    ) -> dict[
-        ManagedAppTaskType,
-        Callable[[ManagedAppType, dict[str, Any]], Awaitable[ExecutorResponse | None]],
-    ]:
+    ) -> dict[ManagedAppTaskType, ExecutorCallable]:
         """Define dictionary of asynchronous Generic[AppTask] executor functions indexed using Generic[ManagedAppTaskType] enum.
         Stored functions must be asynchronous and accept Generic[ManagedAppType] + Params dictionary; and may only return
         ExecutorResponse, or nothing.
