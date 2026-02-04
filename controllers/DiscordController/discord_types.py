@@ -30,7 +30,7 @@ class DiscordAppTaskType(Enum):
     and represent high-level chains of action / workflows within the VM interface
     """
 
-    JOIN_SERVER = "join_server"
+    JOIN_VOICE_CHANNEL = "join_voice_channel"  # Starts activity
     SEND_MESSAGE = "send_message"
     START_SCREENSHARE = "start_screen_share"
     END_SCREENSHARE = "end_screen_share"
@@ -41,4 +41,4 @@ class DiscordAppTaskType(Enum):
 
 
 class DiscordHealthCheckType(Enum):
-    IS_LOGGED_IN = "is_logged_in"
+    IS_LOGGED_IN = "is_logged_in"  # Not implemented
